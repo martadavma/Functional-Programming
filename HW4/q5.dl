@@ -1,0 +1,149 @@
+/* Question 5: Incremental Evaluation, Redux (5 + 8 + 7 = 20 points)
+
+   Please refer back to Homework 3, Question 3.
+
+   Another situation where both DAGs and incremental evaluation are important
+   are build systems, such as Make. Imagine you are developing a large C
+   program, and you change a single file foo.c. The compiler needs to recompile
+   not just foo.c, but also all of the other files whose compilation
+   transitively depended on it. We can certainly determine which files need
+   recompiling, and in what order, in a manner similar to what you did in HW3.
+   However, as we will discover in this question, domain specific languages such
+   as Datalog often provide a much more convenient way to express these
+   computations. As a challenge, my reference solution to this whole question
+   contains just 9 lines of Datalog code. :)
+
+   We provide:
+
+   1. A two column input relation, Deps, consisting of those tuples (x, y) such
+      that the compilation of file y depends on the result of compiling file x.
+   2. A one column input relation, Changed, indicating files which have been
+      changed by the user.
+
+   Compute a two column output relation, OrderlessFullRecompile, consisting of
+   files x which need to be recompiled. We add the prefix Orderless because this
+   relation doesn't tell us in what order to do this recompilation. Feel free to
+   define any auxiliary relations as needed. */
+
+.type file <: symbol
+
+.decl Deps(f1: file, f2: file)
+
+.decl Changed(f: file)
+
+.decl OrderlessFullRecompile(f: file)
+.output OrderlessFullRecompile
+
+// the changed file
+OrderlessFullRecompile(x) :- Changed(x).
+// direct dependency
+OrderlessFullRecompile(y) :- Changed(x), Deps(x,y).
+// dependency is in OrderlessFullRecompile
+OrderlessFullRecompile(y) :- OrderlessFullRecompile(x), Deps(x,y).
+
+
+/* For example, if: */
+Deps("A1", "B1").
+Deps("A1", "A2").
+Deps("B1", "C1").
+Deps("B1", "B2").
+Deps("C1", "C2").
+Deps("A2", "B2").
+Deps("A2", "A3").
+Deps("B2", "C2").
+Deps("B2", "B3").
+Deps("C2", "C3").
+Deps("A3", "B3").
+Deps("B3", "C3").
+
+/* and file A2 is changed: */
+Changed("A2").
+
+/* then the set of files { A2, B2, C2, A3, B3, C3 } need recompilation. */
+
+
+
+/* We now determine the order in which to recompile these files. For this, we
+   will assign each such file f with an iteration number n in which it needs to
+   be recompiled. The idea is that each file is recompiled in an iteration
+   strictly larger than all of its parents. We will store this data in a
+   two-column output relation FullRecompile.
+
+   Note that each f in OrderlessFullRecompile must appear in exactly one tuple
+   (f, n) of FullRecompile. You may assign multiple files to be recompiled in
+   the same iteration number. You may assume that Deps describes a DAG, and may
+   compute any other relations as needed. */
+
+.decl FullRecompile(f: file, n: number)
+.output FullRecompile
+
+// first assign 0 to all files with no dependencies
+FullRecompile(x,0) :- !Deps(y,x).
+
+// if all it's dependecies are in FullRecompile, then add one to max iteration
+FullRecompile(x, (dmax+1)) :- Deps(y,x), dmax = max d: FullRecompile(y, d).
+
+/* For example, if we have FullRecompile("A2", na2) and
+   FullRecompile("B2", nb2), then na2 < nb2, since the file B2 depends on file
+   A1. One possible output---but certainly not the only possibility---is the
+   following:
+
+     ---------------
+     FullRecompile
+     f	n
+     ===============
+     A2	0
+     B2	1
+     C2	2
+     A3	1
+     B3	2
+     C3	3
+     =============== */
+
+/* The prefix Full in FullRecompile indicates that we are recompiling the whole
+   project. Users are often only interested in recompiling a specific file, or
+   rebuild the project in a certain configuration, so one may not need to
+   recompile all files. We provide the files of interest to the user in a
+   one-column input relation, Target.
+
+   Write a Datalog program that determines which files need recompilation, and
+   in what order, assuming this target. We will store the results in a file
+   named PartialRecompile. This is a two-column relation, consisting of the file
+   that needs recompilation, and the iteration number in which it needs to be
+   recompiled. */
+
+.decl Target(f: file)
+
+.decl PartialRecompile(f: file, n: number)
+.output PartialRecompile
+
+// 1. Find all files that need to be recomputed
+.decl OrderlessPartialRecompile(f: file)
+OrderlessPartialRecompile(x) :- Target(x).
+OrderlessPartialRecompile(y) :- Target(x), Deps(y,x).
+OrderlessPartialRecompile(y) :- OrderlessPartialRecompile(x), Deps(y,x).
+
+// 2. Order the list OrderlessPartialRecompile
+// all files with no dependecies in OrderlessPartialRecompile will have a 0
+PartialRecompile(x,0) :- OrderlessPartialRecompile(x), !Deps(y,x).
+// files with dependecies on OrderlessPartialRecompile will be recompiled when
+// all it's dependecies are recompiled.
+PartialRecompile(y, (dm+1)) :- Deps(x,y), OrderlessPartialRecompile(x), 
+                               dm = max n: PartialRecompile(x,n).
+
+
+Target("B3").
+
+/* In this case, we would need to recompile { A2, B2, A3, B3 }. Note that the
+   files { C2, C3 } do not need to be recompiled even though their dependencies
+   have changed. */
+
+/* If you found this question interesting, you might want to read the following
+   paper:
+
+     Andrey Mokov, Neil Mitchell, Simon Peyton Jones. Build systems a la carte.
+     ICFP 2020. https://dl.acm.org/doi/10.1145/3236774.
+
+   Simon Peyton Jones is one of the designers of the Haskell programming
+   language, and this paper is about the authors' experience with build
+   systems. */

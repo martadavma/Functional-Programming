@@ -1,0 +1,86 @@
+/* Question 4: Genealogies
+
+   You are given a single table, Parent, with two columns. It contains the set
+   of tuples (x, y) where person x is a parent of parent y. We want to compute a
+   two-column table, Related, of the tuples (x, y) of people who are related. We
+   say that two people are related if they share an ancestor, or share a
+   descendant, or are related to a third person.
+
+   Write a Datalog program that computes Related.
+
+   For example, given:
+
+     Parent
+     -------------------
+     John      | Mary
+     Christine | Mary
+     Mary      | Joseph
+     David     | Joseph
+     Martin    | Michael
+     Martin    | Steve
+
+   the output table Related should contain all 25 pairs formed by of people in
+   { John, Christine, Mary, Joseph, David }, and all nine pairs formed by people
+   in { Martin, Michael, Steve }.
+
+   You may download and install Souffle by following the instructions at
+   https://souffle-lang.github.io/download.html. Make sure that your program is
+   accepted by Souffle without any warnings. */
+
+.type person <: symbol
+
+.decl Parent(p1: person, p2: person)
+//.input parents
+
+.decl Related(p1: person, p2: person)
+.output Related
+
+// Parents table
+Parent("John", "Mary").
+Parent("Christine", "Mary").
+Parent("Mary", "Joseph").
+Parent("David", "Joseph").
+Parent("Martin", "Michael").
+Parent("Martin","Steve").
+
+// Whays to be related
+// to yourself
+Related(x, x) :- .
+// son of
+Related(x, y) :- Parent(x, y).
+// son of
+Related(y, x) :- Parent(x, y).
+// related relative (parent, partner, son...)
+Related(x, y) :- Related(x, z), Related(z, y).
+// related relative (parent, partner, son...)
+Related(y, x) :- Related(x, z), Related(z, y).
+
+/*
+// common parents
+Related(x, y) :- Parent(z, x), Parent(z, y).
+// common parents
+Related(y, x) :- Parent(z, x), Parent(z, y).
+// same child
+Related(x, y) :- Parent(x, z), Parent(y, z).
+// same child
+Related(y, x) :- Parent(x, z), Parent(y, z). */
+
+
+/* Next, we want to determine all pairs of individuals at the same level of the
+   family tree. For example, John and Christine, both being parents of Mary, are
+   at the same level of the family tree. Similarly, Mary and David are in the
+   same generation, since they are both parents of Joseph. Finally, both Michael
+   and Steve are children of Martin, so they belong to the same generation.
+
+   Write a Datalog program that computes the two-column relation Samegen. */
+
+.decl Samegen(p1: person, p2: person)
+.output Samegen
+
+// same Parents table as above
+
+//ways to be on the same generation
+// siblings
+Samegen(x, y) :- parent(z, x), parent(z, y).
+// cousins (2nd cousins, 3rd cousins...)
+Samegen(z, w) :- Samegen(x, y), parent(x, z), parent(y, w).
