@@ -1,2 +1,2 @@
-# Functional-Programming-CSCI-499
-USC CSCI 499 Projects
+# Functional Programming
+USC Functional Prorgamming course
